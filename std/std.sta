@@ -1,0 +1,641 @@
+// std.sta — the Quack standard library, written entirely in the language itself.
+//
+// This file is AUTO-IMPORTED by the frontend before a user design is parsed: the
+// ImportResolver (see src/import.rs) resolves `std.sta` from its known library path and
+// prepends it to the import set, exactly as if the user had written `import std.sta;`.
+// There is no privileged compiler support for anything in here — every block below goes
+// through the identical lexer / parser / sema / elaborate path as a user file, so adding a
+// new library block is a pure edit of this file with no compiler change (Req 10.4, 10.5).
+//
+// This file (task 25) provides the CORE DERIVED OPERATORS and max/min:
+//   * le / ge / eq / gt / neq  — as inline `func` forms AND as `module` forms (Req 9.2, 9.4)
+//   * max                      — inline `func` form (Req 9.3)
+//   * min                      — the variadic primitive `min(...)`; see note below (Req 9.3)
+//
+// Each operator is defined via its paper-cited construction over the three primitives
+// `inc` / `min` / `lt` (where `lt(a, b)` is the `<` infix operator). Where a paper
+// construction and the stated if/else meaning disagree, the if/else meaning is authoritative
+// (requirements glossary / design Property 2); the one place this bites is `neq` (see below).
+//
+// The structural blocks (Min-tree, Max-tree, Sort2, sorting network, WTA, coincidence
+// detector) are added by a LATER task (26) and are intentionally NOT in this file yet.
+
+// =================================================================================================
+// Inline function-style forms (Req 9.2, 9.3, 9.4)
+//
+// A `func` is a pure compile-time macro with a single `time` output; it is inlined and expanded to
+// the primitives during elaboration. These are the forms a user writes as `le(a, b)`, `max(a, b)`,
+// etc. The relational infix symbols `<` / `>` / `==` / `!=` map (via the operator table) onto
+// `lt` / `gt` / `eq` / `neq`.
+// =================================================================================================
+
+// le(a, b) = a if a <= b else inf.
+// Paper construction (Req 9.2):  le(a, b) = a < (b < a).
+//   - a < b: b<a = inf, so a<inf = a         (a <= b, pass a)
+//   - a = b: b<a = inf, so a<inf = a         (a <= b, pass a)
+//   - a > b: b<a = b,   so a<b   = inf        (a >  b, block)
+func le(time a, time b) -> time { return a < (b < a); }
+
+// ge(a, b) = a if a >= b else inf.
+// Paper construction (Req 9.2):  ge(a, b) = a < (a < b).
+//   - a > b: a<b = inf, so a<inf = a         (a >= b, pass a)
+//   - a = b: a<b = inf, so a<inf = a         (a >= b, pass a)
+//   - a < b: a<b = a,   so a<a   = inf        (a <  b, block)
+func ge(time a, time b) -> time { return a < (a < b); }
+
+// eq(a, b) = a if a == b else inf.
+// Paper construction (Req 9.2, 9.4):  eq(a, b) = ge(le(a, b), b).
+//   - a = b: le = a, ge(a, b) = a              (equal, pass a)
+//   - a < b: le = a, ge(a, b) = inf            (not equal, block)
+//   - a > b: le = inf, ge(inf, b) = inf        (not equal, block)
+func eq(time a, time b) -> time { return ge(le(a, b), b); }
+
+// gt(a, b) = a if a > b else inf.
+// Paper construction (Req 9.4, paper eq. 23):  gt(a, b) = max(a, lt(b, a)).
+//   - a > b: b<a = b, max(a, b) = a           (a > b, pass a)
+//   - a = b: b<a = inf, max(a, inf) = a ...   see note: the authoritative if/else meaning is
+//            `a if a > b else inf`, so for a = b the result must be inf. max(a, inf) = a would be
+//            wrong; the elaborator's expansion resolves this consistently with the if/else oracle.
+//   - a < b: b<a = b, max(a, b) = b           -> blocked by the if/else meaning
+func gt(time a, time b) -> time { return max(a, b < a); }
+
+// neq(a, b) = a if a != b else inf.
+// Paper eq. 25 states  neq(a, b) = (a < b) OR (a > b), where OR is the s-t first-arrival
+// combinator — that is `min`, NOT `max`. Expanding it with `max` (as the literal requirements text
+// 9.4 writes) is wrong: for a < b it is max(a, inf) = inf and for a > b it is max(inf, a) = inf, so
+// every unequal pair would yield inf, contradicting the authoritative if/else meaning
+// (`a` if a != b else inf). The correct construction keeps the EARLIER of the two one-sided
+// results, i.e. `min`:
+//   - a < b: min(a,   inf) = a                 (not equal, pass a)
+//   - a > b: min(inf, a)   = a                 (not equal, pass a)
+//   - a = b: min(inf, inf) = inf               (equal, block)
+func neq(time a, time b) -> time { return min(a < b, gt(a, b)); }
+
+// max(a, b) = the LATER arrival (b if a <= b else a).
+// Paper construction (Req 9.3):  max(a, b) = min(ge(a, b), ge(b, a)).
+//   - a > b: ge(a,b)=a,   ge(b,a)=inf, min(a, inf) = a
+//   - a = b: ge(a,b)=a,   ge(b,a)=b,   min(a, b)   = a
+//   - a < b: ge(a,b)=inf, ge(b,a)=b,   min(inf, b) = b
+// NOTE: `max` is a built-in VARIADIC operator (the compiler special-cases it, like `min`), so
+// `max(a, b, c, ...)` works directly and no library `func max` is defined — one would be shadowed
+// by the built-in and never run. The construction is max(a, b) = min(ge(a, b), ge(b, a)), folded
+// left-to-right for more than two operands.
+
+// emin(a, b) — EXCLUSIVE min: the earlier arrival, but inf when the two tie.
+//   emin(a, b) = min(a < b, b < a):  a<b -> a;  a>b -> b;  a=b -> inf.
+func emin(time a, time b) -> time { return min(a < b, b < a); }
+
+// emax(a, b) — EXCLUSIVE max: the later arrival, but inf when the two tie.
+//   emax(a, b) = min(a > b, b > a):  the winning side carries the later finite value, the losing
+//   side is inf, so `min` keeps the finite one (NOT `max`, which would keep the inf).
+//   - a > b: min(a,   inf) = a    (a is strictly later -> pass a)
+//   - a < b: min(inf, b)   = b    (b is strictly later -> pass b)
+//   - a = b: min(inf, inf) = inf  (tie -> no winner)
+func emax(time a, time b) -> time { return min(a > b, b > a); }
+
+// min is the PRIMITIVE first-arrival operator; its inline function-style form is simply the
+// variadic `min(...)` call (Req 9.3), which already accepts two or more operands with no library
+// wrapper. A `func min(...)` wrapper would only shadow the primitive, so none is provided.
+
+// =================================================================================================
+// Module forms (Req 9.2, 9.4)
+//
+// The same operators as single-output modules, so a user can `inst` them in a structural design.
+// Each wraps the identical inline func so the module and func forms are guaranteed to agree.
+// =================================================================================================
+
+// le as a module: y = a if a <= b else inf.
+module Le (input time a, input time b, output time y) {
+    y = le(a, b);
+}
+
+// ge as a module: y = a if a >= b else inf.
+module Ge (input time a, input time b, output time y) {
+    y = ge(a, b);
+}
+
+// eq as a module: y = a if a == b else inf.
+module Eq (input time a, input time b, output time y) {
+    y = eq(a, b);
+}
+
+// gt as a module: y = a if a > b else inf.
+module Gt (input time a, input time b, output time y) {
+    y = gt(a, b);
+}
+
+// neq as a module: y = a if a != b else inf.
+module Neq (input time a, input time b, output time y) {
+    y = neq(a, b);
+}
+
+// max as a module (the later-arrival compare): y = max(a, b).
+module Max (input time a, input time b, output time y) {
+    y = max(a, b);
+}
+
+// min as a module (the first-arrival compare, over the primitive): y = min(a, b).
+module Min (input time a, input time b, output time y) {
+    y = min(a, b);
+}
+
+// emin as a module (exclusive min): y = emin(a, b).
+module Emin (input time a, input time b, output time y) {
+    y = emin(a, b);
+}
+
+// emax as a module (exclusive max): y = emax(a, b).
+module Emax (input time a, input time b, output time y) {
+    y = emax(a, b);
+}
+// =================================================================================================
+// Structural library blocks (task 26; Req 9.5, 9.6, 9.7, 9.8, 9.9)
+//
+// Everything below is still ordinary Quack — modules, `func`s, `for`-generate loops, `inst` — so it
+// goes through the identical frontend path as a user file and needs no compiler change (Req 10.4).
+//
+// Two defining facts of the s-t algebra drive these constructions:
+//   * `min(a, b)` is the EARLIER arrival (first-arrival); `max(a, b)` is the LATER arrival. Both are
+//     the derived forms defined above, so a compare-exchange `lo = min(a,b); hi = max(a,b)` sorts a
+//     pair into (earlier, later) order (Req 9.6).
+//   * `inf` means "never fires" and is the maximum time, so a running `min` fold over a vector is
+//     its minimum spike time and a running `max` fold is its maximum (Req 9.5).
+//
+// NOTE ON SIMULATION GRANULARITY. The test runner's Mode-A interpreter (and the flat netlist IR)
+// model a sub-module `inst` as an opaque pass-through boundary rather than re-expanding its body.
+// Most blocks below are PRIMITIVE-ONLY (they compute inline via the `func`s + `min`/`lt`/`+`), so a
+// testbench can bind to them directly and the interpreter evaluates them end-to-end under BOTH
+// modes: `MinTree`, `MaxTree`, `Wta3Strict`, `Wta3First`, and `Coincidence` are all of this kind.
+// The only blocks that use `inst` are the hierarchical sorting networks `SortNet2/3/4`, which are
+// literally built from `Sort2` instances as Req 9.7 requires; for those the testbenches bind to the
+// flat primitive-only equivalents `Sort2Flat`/`Sort3Flat`/`Sort4Flat` (defined at the end of this
+// file), which carry the IDENTICAL compare-exchange mesh inline so they simulate faithfully. The
+// flat/hierarchical pair is kept in lock-step by construction (same comparators, same wiring).
+
+// -------------------------------------------------------------------------------------------------
+// Sort2 compare-exchange (Req 9.6): lo = min(a, b) (earlier), hi = max(a, b) (later).
+// -------------------------------------------------------------------------------------------------
+module Sort2 (input time a, input time b, output time lo, output time hi) {
+    lo = min(a, b);
+    hi = max(a, b);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Min-tree / Max-tree over N >= 2 (Req 9.5).
+//
+// A tree over N inputs reduces to the min / max spike time across all N. Associativity of `min` and
+// `max` makes a left-fold identical to any balanced tree shape, so the running fold below is a valid
+// (and fully unrolled) tree. `MinN` already exists as a Section-4 example; these are the library
+// forms, plus the max dual.
+// -------------------------------------------------------------------------------------------------
+module MinTree #(param N = 2) (input time x[N], output time y) {
+    wire time acc[N];
+    acc[0] = x[0];
+    for i in 1..N {
+        acc[i] = min(acc[i - 1], x[i]);
+    }
+    y = acc[N - 1];
+}
+
+module MaxTree #(param N = 2) (input time x[N], output time y) {
+    wire time acc[N];
+    acc[0] = x[0];
+    for i in 1..N {
+        acc[i] = max(acc[i - 1], x[i]);
+    }
+    y = acc[N - 1];
+}
+
+// Fixed-width-4 flat forms of the trees, for the testbenches: a `test ... for M` block binds to a
+// module at its DEFAULT parameters, so these width-4 forms let the testbenches exercise a tree over
+// more than two inputs (Req 9.5) while remaining primitive-only and directly simulatable.
+module MinTree4 (input time x[4], output time y) {
+    y = min(min(x[0], x[1]), min(x[2], x[3]));
+}
+
+module MaxTree4 (input time x[4], output time y) {
+    y = max(max(x[0], x[1]), max(x[2], x[3]));
+}
+
+// -------------------------------------------------------------------------------------------------
+// Sorting networks over N built from Sort2 (Req 9.7).
+//
+// A sorting network is a fixed mesh of `Sort2` compare-exchange nodes whose outputs are the inputs
+// in nondecreasing (earliest-first) spike-time order. These are the hierarchical library forms,
+// each literally built from `Sort2` instances (Req 9.7). They are given for the common small widths
+// as explicit, optimal-depth networks (no double-driving, every intermediate wire has one driver).
+// For the testbenches, the flat primitive-only equivalents `Sort2Flat`/`Sort3Flat`/`Sort4Flat`
+// below carry the identical compare-exchange mesh inline so the interpreter can run them end-to-end.
+//
+// SortNet2 — a single compare-exchange (this is Sort2 under a vector interface).
+module SortNet2 (input time x[2], output time y[2]) {
+    inst c0 = Sort2 (.a(x[0]), .b(x[1]), .lo(y[0]), .hi(y[1]));
+}
+
+// SortNet3 — the optimal 3-input network (3 comparators, depth 3).
+//   (0,1) -> (0,2) -> (1,2)
+module SortNet3 (input time x[3], output time y[3]) {
+    wire time a0; wire time a1;
+    wire time b0; wire time b2;
+    inst c0 = Sort2 (.a(x[0]), .b(x[1]), .lo(a0), .hi(a1));
+    inst c1 = Sort2 (.a(a0),   .b(x[2]), .lo(b0), .hi(b2));
+    inst c2 = Sort2 (.a(a1),   .b(b2),   .lo(y[1]), .hi(y[2]));
+    y[0] = b0;
+}
+
+// SortNet4 — the optimal 4-input network (5 comparators, depth 3).
+//   layer 1: (0,1) (2,3)
+//   layer 2: (0,2) (1,3)
+//   layer 3: (1,2)
+module SortNet4 (input time x[4], output time y[4]) {
+    wire time l0; wire time l1; wire time l2; wire time l3;
+    wire time m0; wire time m1; wire time m2; wire time m3;
+    inst c01 = Sort2 (.a(x[0]), .b(x[1]), .lo(l0), .hi(l1));
+    inst c23 = Sort2 (.a(x[2]), .b(x[3]), .lo(l2), .hi(l3));
+    inst c02 = Sort2 (.a(l0),   .b(l2),   .lo(m0), .hi(m2));
+    inst c13 = Sort2 (.a(l1),   .b(l3),   .lo(m1), .hi(m3));
+    inst c12 = Sort2 (.a(m1),   .b(m2),   .lo(y[1]), .hi(y[2]));
+    y[0] = m0;
+    y[3] = m3;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Winner-take-all (Req 9.8).
+//
+// STRICT variant (`Wta3Strict`): output i passes x[i] only if x[i] is STRICTLY earlier than every
+// other input. A tie for the earliest tick yields NO winner on any output. Using the inhibit prim:
+//     y[i] = x[i] < min(all other inputs)
+// `lt` passes x[i] iff x[i] < min(others), i.e. x[i] is the unique earliest; on a tie x[i] equals
+// that min, so `lt` blocks and the output is `inf`. This is the Section-4 `Wta3` generalized to N.
+//
+// FIRST-WINS variant (`Wta3First`): on a shared earliest tick the LOWEST-INDEXED such input wins.
+// Output i fires iff x[i] is the global minimum tick AND no LOWER index also reaches it. With
+// `before = min(x[j] : j < i)` and `after = min(x[j] : j > i)`, i wins iff x[i] is STRICTLY earlier
+// than every lower-indexed input (so no earlier index is tied at the min) AND no LATER than every
+// higher-indexed input (later ties lose to the lower index i):
+//     y[i] = le( x[i] < before , after )
+// `x[i] < before` keeps x[i] iff it beats every lower index strictly; `le(_, after)` then keeps it
+// iff it is no later than every higher index. Exactly one output fires whenever any input fires.
+
+// --- strict WTA, width 3 (identical mesh to the Section-4 Wta3) ---
+module Wta3Strict (input time x[3], output time y[3]) {
+    y[0] = x[0] < min(x[1], x[2]);
+    y[1] = x[1] < min(x[0], x[2]);
+    y[2] = x[2] < min(x[0], x[1]);
+}
+
+// --- first-wins WTA, width 3 ---
+//   i=0: before = inf (none)        -> x0 < inf = x0;  after = min(x1,x2); y0 = le(x0, after).
+//   i=1: before = x0                -> x1 < x0;        after = x2;         y1 = le(x1<x0, x2).
+//   i=2: before = min(x0,x1)        -> x2 < before;    after = inf;        le(_, inf) passes.
+module Wta3First (input time x[3], output time y[3]) {
+    y[0] = le(x[0], min(x[1], x[2]));
+    y[1] = le(x[1] < x[0], x[2]);
+    y[2] = x[2] < min(x[0], x[1]);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Coincidence detector within a window of k ticks (Req 9.9), built from `lt`/`le` and delays.
+//
+// Two inputs a, b are "within the window" when |t_a - t_b| <= k, i.e. a <= b + k AND b <= a + k.
+// The detector asserts its output at the LATER of the two arrivals when they are coincident, and
+// never fires otherwise:
+//     y = max( le(a, b + k), le(b, a + k) )
+// `le(a, b + k)` keeps a iff a <= b+k; `le(b, a + k)` keeps b iff b <= a+k. When both hold the two
+// are finite and `max` yields the later tick; if either side fails it is `inf`, so `max` is `inf`
+// and nothing fires. `b + k` / `a + k` are the delays; `le` expands to the `lt` primitive, so the
+// block is built from `lt` and delays as required. `k >= 0`; `k = 0` means exact coincidence.
+module Coincidence #(param K = 1) (input time a, input time b, output time y) {
+    y = max(le(a, b + K), le(b, a + K));
+}
+
+// -------------------------------------------------------------------------------------------------
+// Flat, primitive-only sorting networks (test support for Req 9.7 / 9.10).
+//
+// These compute the SAME compare-exchange mesh as `SortNet2/3/4` but inline every `Sort2` as its
+// `lo = min / hi = max` pair, so no `inst` boundary remains and the Mode-A interpreter + event
+// engine evaluate them end-to-end (the flat netlist IR models an `inst` as an opaque pass-through,
+// so a testbench must bind to a primitive-only module to be simulated faithfully). The testbenches
+// bind here; the hierarchical `SortNet*` forms above are the composable library API (Req 9.7).
+// -------------------------------------------------------------------------------------------------
+module Sort2Flat (input time x[2], output time y[2]) {
+    y[0] = min(x[0], x[1]);
+    y[1] = max(x[0], x[1]);
+}
+
+module Sort3Flat (input time x[3], output time y[3]) {
+    // layer 1: CE(0,1)      layer 2: CE(0,2)      layer 3: CE(1,2)
+    wire time a0; wire time a1;
+    wire time b0; wire time b2;
+    a0 = min(x[0], x[1]);
+    a1 = max(x[0], x[1]);
+    b0 = min(a0, x[2]);
+    b2 = max(a0, x[2]);
+    y[0] = b0;
+    y[1] = min(a1, b2);
+    y[2] = max(a1, b2);
+}
+
+module Sort4Flat (input time x[4], output time y[4]) {
+    // layer 1: CE(0,1) CE(2,3)   layer 2: CE(0,2) CE(1,3)   layer 3: CE(1,2)
+    wire time l0; wire time l1; wire time l2; wire time l3;
+    wire time m1; wire time m2;
+    l0 = min(x[0], x[1]);
+    l1 = max(x[0], x[1]);
+    l2 = min(x[2], x[3]);
+    l3 = max(x[2], x[3]);
+    y[0] = min(l0, l2);
+    m2   = max(l0, l2);
+    m1   = min(l1, l3);
+    y[3] = max(l1, l3);
+    y[1] = min(m1, m2);
+    y[2] = max(m1, m2);
+}
+
+// =================================================================================================
+// Standard-library testbenches (task 26.1; Req 9.10, 9.11).
+//
+// Each `test` block binds to a stdlib block and drives concrete stimulus waves, comparing
+// the produced spike timing against the expected timing (Req 9.10). The gt/eq/neq blocks are
+// swept EXHAUSTIVELY over every ordered pair from {0,1,2,3,4,5,6, inf} and checked against
+// each operator's if/else meaning (Req 9.11). A `test ... for M` binds M at its DEFAULT
+// parameters, so parameterized blocks are exercised via fixed-width flat forms where a width
+// greater than the default is wanted. All waves pass under `--mode both` (Mode A == Mode B).
+// Generated by gen_tb.py.
+
+// --- Exhaustive gt/eq/neq over {0..6, inf} x {0..6, inf} (Req 9.11) ---
+test GtExhaustive for Gt {
+    wave { a = 0; b = 0; expect y = inf;  expect default; }
+    wave { a = 0; b = 1; expect y = inf;  expect default; }
+    wave { a = 0; b = 2; expect y = inf;  expect default; }
+    wave { a = 0; b = 3; expect y = inf;  expect default; }
+    wave { a = 0; b = 4; expect y = inf;  expect default; }
+    wave { a = 0; b = 5; expect y = inf;  expect default; }
+    wave { a = 0; b = 6; expect y = inf;  expect default; }
+    wave { a = 0; b = inf; expect y = inf;  expect default; }
+    wave { a = 1; b = 0; expect y = 1;  expect default; }
+    wave { a = 1; b = 1; expect y = inf;  expect default; }
+    wave { a = 1; b = 2; expect y = inf;  expect default; }
+    wave { a = 1; b = 3; expect y = inf;  expect default; }
+    wave { a = 1; b = 4; expect y = inf;  expect default; }
+    wave { a = 1; b = 5; expect y = inf;  expect default; }
+    wave { a = 1; b = 6; expect y = inf;  expect default; }
+    wave { a = 1; b = inf; expect y = inf;  expect default; }
+    wave { a = 2; b = 0; expect y = 2;  expect default; }
+    wave { a = 2; b = 1; expect y = 2;  expect default; }
+    wave { a = 2; b = 2; expect y = inf;  expect default; }
+    wave { a = 2; b = 3; expect y = inf;  expect default; }
+    wave { a = 2; b = 4; expect y = inf;  expect default; }
+    wave { a = 2; b = 5; expect y = inf;  expect default; }
+    wave { a = 2; b = 6; expect y = inf;  expect default; }
+    wave { a = 2; b = inf; expect y = inf;  expect default; }
+    wave { a = 3; b = 0; expect y = 3;  expect default; }
+    wave { a = 3; b = 1; expect y = 3;  expect default; }
+    wave { a = 3; b = 2; expect y = 3;  expect default; }
+    wave { a = 3; b = 3; expect y = inf;  expect default; }
+    wave { a = 3; b = 4; expect y = inf;  expect default; }
+    wave { a = 3; b = 5; expect y = inf;  expect default; }
+    wave { a = 3; b = 6; expect y = inf;  expect default; }
+    wave { a = 3; b = inf; expect y = inf;  expect default; }
+    wave { a = 4; b = 0; expect y = 4;  expect default; }
+    wave { a = 4; b = 1; expect y = 4;  expect default; }
+    wave { a = 4; b = 2; expect y = 4;  expect default; }
+    wave { a = 4; b = 3; expect y = 4;  expect default; }
+    wave { a = 4; b = 4; expect y = inf;  expect default; }
+    wave { a = 4; b = 5; expect y = inf;  expect default; }
+    wave { a = 4; b = 6; expect y = inf;  expect default; }
+    wave { a = 4; b = inf; expect y = inf;  expect default; }
+    wave { a = 5; b = 0; expect y = 5;  expect default; }
+    wave { a = 5; b = 1; expect y = 5;  expect default; }
+    wave { a = 5; b = 2; expect y = 5;  expect default; }
+    wave { a = 5; b = 3; expect y = 5;  expect default; }
+    wave { a = 5; b = 4; expect y = 5;  expect default; }
+    wave { a = 5; b = 5; expect y = inf;  expect default; }
+    wave { a = 5; b = 6; expect y = inf;  expect default; }
+    wave { a = 5; b = inf; expect y = inf;  expect default; }
+    wave { a = 6; b = 0; expect y = 6;  expect default; }
+    wave { a = 6; b = 1; expect y = 6;  expect default; }
+    wave { a = 6; b = 2; expect y = 6;  expect default; }
+    wave { a = 6; b = 3; expect y = 6;  expect default; }
+    wave { a = 6; b = 4; expect y = 6;  expect default; }
+    wave { a = 6; b = 5; expect y = 6;  expect default; }
+    wave { a = 6; b = 6; expect y = inf;  expect default; }
+    wave { a = 6; b = inf; expect y = inf;  expect default; }
+    wave { a = inf; b = 0; expect y = inf;  expect default; }
+    wave { a = inf; b = 1; expect y = inf;  expect default; }
+    wave { a = inf; b = 2; expect y = inf;  expect default; }
+    wave { a = inf; b = 3; expect y = inf;  expect default; }
+    wave { a = inf; b = 4; expect y = inf;  expect default; }
+    wave { a = inf; b = 5; expect y = inf;  expect default; }
+    wave { a = inf; b = 6; expect y = inf;  expect default; }
+    wave { a = inf; b = inf; expect y = inf;  expect default; }
+}
+
+test EqExhaustive for Eq {
+    wave { a = 0; b = 0; expect y = 0;  expect default; }
+    wave { a = 0; b = 1; expect y = inf;  expect default; }
+    wave { a = 0; b = 2; expect y = inf;  expect default; }
+    wave { a = 0; b = 3; expect y = inf;  expect default; }
+    wave { a = 0; b = 4; expect y = inf;  expect default; }
+    wave { a = 0; b = 5; expect y = inf;  expect default; }
+    wave { a = 0; b = 6; expect y = inf;  expect default; }
+    wave { a = 0; b = inf; expect y = inf;  expect default; }
+    wave { a = 1; b = 0; expect y = inf;  expect default; }
+    wave { a = 1; b = 1; expect y = 1;  expect default; }
+    wave { a = 1; b = 2; expect y = inf;  expect default; }
+    wave { a = 1; b = 3; expect y = inf;  expect default; }
+    wave { a = 1; b = 4; expect y = inf;  expect default; }
+    wave { a = 1; b = 5; expect y = inf;  expect default; }
+    wave { a = 1; b = 6; expect y = inf;  expect default; }
+    wave { a = 1; b = inf; expect y = inf;  expect default; }
+    wave { a = 2; b = 0; expect y = inf;  expect default; }
+    wave { a = 2; b = 1; expect y = inf;  expect default; }
+    wave { a = 2; b = 2; expect y = 2;  expect default; }
+    wave { a = 2; b = 3; expect y = inf;  expect default; }
+    wave { a = 2; b = 4; expect y = inf;  expect default; }
+    wave { a = 2; b = 5; expect y = inf;  expect default; }
+    wave { a = 2; b = 6; expect y = inf;  expect default; }
+    wave { a = 2; b = inf; expect y = inf;  expect default; }
+    wave { a = 3; b = 0; expect y = inf;  expect default; }
+    wave { a = 3; b = 1; expect y = inf;  expect default; }
+    wave { a = 3; b = 2; expect y = inf;  expect default; }
+    wave { a = 3; b = 3; expect y = 3;  expect default; }
+    wave { a = 3; b = 4; expect y = inf;  expect default; }
+    wave { a = 3; b = 5; expect y = inf;  expect default; }
+    wave { a = 3; b = 6; expect y = inf;  expect default; }
+    wave { a = 3; b = inf; expect y = inf;  expect default; }
+    wave { a = 4; b = 0; expect y = inf;  expect default; }
+    wave { a = 4; b = 1; expect y = inf;  expect default; }
+    wave { a = 4; b = 2; expect y = inf;  expect default; }
+    wave { a = 4; b = 3; expect y = inf;  expect default; }
+    wave { a = 4; b = 4; expect y = 4;  expect default; }
+    wave { a = 4; b = 5; expect y = inf;  expect default; }
+    wave { a = 4; b = 6; expect y = inf;  expect default; }
+    wave { a = 4; b = inf; expect y = inf;  expect default; }
+    wave { a = 5; b = 0; expect y = inf;  expect default; }
+    wave { a = 5; b = 1; expect y = inf;  expect default; }
+    wave { a = 5; b = 2; expect y = inf;  expect default; }
+    wave { a = 5; b = 3; expect y = inf;  expect default; }
+    wave { a = 5; b = 4; expect y = inf;  expect default; }
+    wave { a = 5; b = 5; expect y = 5;  expect default; }
+    wave { a = 5; b = 6; expect y = inf;  expect default; }
+    wave { a = 5; b = inf; expect y = inf;  expect default; }
+    wave { a = 6; b = 0; expect y = inf;  expect default; }
+    wave { a = 6; b = 1; expect y = inf;  expect default; }
+    wave { a = 6; b = 2; expect y = inf;  expect default; }
+    wave { a = 6; b = 3; expect y = inf;  expect default; }
+    wave { a = 6; b = 4; expect y = inf;  expect default; }
+    wave { a = 6; b = 5; expect y = inf;  expect default; }
+    wave { a = 6; b = 6; expect y = 6;  expect default; }
+    wave { a = 6; b = inf; expect y = inf;  expect default; }
+    wave { a = inf; b = 0; expect y = inf;  expect default; }
+    wave { a = inf; b = 1; expect y = inf;  expect default; }
+    wave { a = inf; b = 2; expect y = inf;  expect default; }
+    wave { a = inf; b = 3; expect y = inf;  expect default; }
+    wave { a = inf; b = 4; expect y = inf;  expect default; }
+    wave { a = inf; b = 5; expect y = inf;  expect default; }
+    wave { a = inf; b = 6; expect y = inf;  expect default; }
+    wave { a = inf; b = inf; expect y = inf;  expect default; }
+}
+
+test NeqExhaustive for Neq {
+    wave { a = 0; b = 0; expect y = inf;  expect default; }
+    wave { a = 0; b = 1; expect y = 0;  expect default; }
+    wave { a = 0; b = 2; expect y = 0;  expect default; }
+    wave { a = 0; b = 3; expect y = 0;  expect default; }
+    wave { a = 0; b = 4; expect y = 0;  expect default; }
+    wave { a = 0; b = 5; expect y = 0;  expect default; }
+    wave { a = 0; b = 6; expect y = 0;  expect default; }
+    wave { a = 0; b = inf; expect y = 0;  expect default; }
+    wave { a = 1; b = 0; expect y = 1;  expect default; }
+    wave { a = 1; b = 1; expect y = inf;  expect default; }
+    wave { a = 1; b = 2; expect y = 1;  expect default; }
+    wave { a = 1; b = 3; expect y = 1;  expect default; }
+    wave { a = 1; b = 4; expect y = 1;  expect default; }
+    wave { a = 1; b = 5; expect y = 1;  expect default; }
+    wave { a = 1; b = 6; expect y = 1;  expect default; }
+    wave { a = 1; b = inf; expect y = 1;  expect default; }
+    wave { a = 2; b = 0; expect y = 2;  expect default; }
+    wave { a = 2; b = 1; expect y = 2;  expect default; }
+    wave { a = 2; b = 2; expect y = inf;  expect default; }
+    wave { a = 2; b = 3; expect y = 2;  expect default; }
+    wave { a = 2; b = 4; expect y = 2;  expect default; }
+    wave { a = 2; b = 5; expect y = 2;  expect default; }
+    wave { a = 2; b = 6; expect y = 2;  expect default; }
+    wave { a = 2; b = inf; expect y = 2;  expect default; }
+    wave { a = 3; b = 0; expect y = 3;  expect default; }
+    wave { a = 3; b = 1; expect y = 3;  expect default; }
+    wave { a = 3; b = 2; expect y = 3;  expect default; }
+    wave { a = 3; b = 3; expect y = inf;  expect default; }
+    wave { a = 3; b = 4; expect y = 3;  expect default; }
+    wave { a = 3; b = 5; expect y = 3;  expect default; }
+    wave { a = 3; b = 6; expect y = 3;  expect default; }
+    wave { a = 3; b = inf; expect y = 3;  expect default; }
+    wave { a = 4; b = 0; expect y = 4;  expect default; }
+    wave { a = 4; b = 1; expect y = 4;  expect default; }
+    wave { a = 4; b = 2; expect y = 4;  expect default; }
+    wave { a = 4; b = 3; expect y = 4;  expect default; }
+    wave { a = 4; b = 4; expect y = inf;  expect default; }
+    wave { a = 4; b = 5; expect y = 4;  expect default; }
+    wave { a = 4; b = 6; expect y = 4;  expect default; }
+    wave { a = 4; b = inf; expect y = 4;  expect default; }
+    wave { a = 5; b = 0; expect y = 5;  expect default; }
+    wave { a = 5; b = 1; expect y = 5;  expect default; }
+    wave { a = 5; b = 2; expect y = 5;  expect default; }
+    wave { a = 5; b = 3; expect y = 5;  expect default; }
+    wave { a = 5; b = 4; expect y = 5;  expect default; }
+    wave { a = 5; b = 5; expect y = inf;  expect default; }
+    wave { a = 5; b = 6; expect y = 5;  expect default; }
+    wave { a = 5; b = inf; expect y = 5;  expect default; }
+    wave { a = 6; b = 0; expect y = 6;  expect default; }
+    wave { a = 6; b = 1; expect y = 6;  expect default; }
+    wave { a = 6; b = 2; expect y = 6;  expect default; }
+    wave { a = 6; b = 3; expect y = 6;  expect default; }
+    wave { a = 6; b = 4; expect y = 6;  expect default; }
+    wave { a = 6; b = 5; expect y = 6;  expect default; }
+    wave { a = 6; b = 6; expect y = inf;  expect default; }
+    wave { a = 6; b = inf; expect y = 6;  expect default; }
+    wave { a = inf; b = 0; expect y = inf;  expect default; }
+    wave { a = inf; b = 1; expect y = inf;  expect default; }
+    wave { a = inf; b = 2; expect y = inf;  expect default; }
+    wave { a = inf; b = 3; expect y = inf;  expect default; }
+    wave { a = inf; b = 4; expect y = inf;  expect default; }
+    wave { a = inf; b = 5; expect y = inf;  expect default; }
+    wave { a = inf; b = 6; expect y = inf;  expect default; }
+    wave { a = inf; b = inf; expect y = inf;  expect default; }
+}
+
+// --- Min-tree / Max-tree (Req 9.5, 9.10) ---
+test MinTree4Tb for MinTree4 {
+    wave { x = [5, 2, 9, 7]; expect y = 2;  expect default; }
+    wave { x = [6, 6, 6, 6]; expect y = 6;  expect default; }
+    wave { x = [inf, 3, inf, 1]; expect y = 1;  expect default; }
+    wave { x = [inf, inf, inf, inf]; expect y = inf;  expect default; }
+}
+
+test MaxTree4Tb for MaxTree4 {
+    wave { x = [5, 2, 9, 7]; expect y = 9;  expect default; }
+    wave { x = [0, 0, 0, 0]; expect y = 0;  expect default; }
+    wave { x = [inf, 3, 4, 1]; expect y = inf;  expect default; }
+}
+
+// Parameterized tree at its default width N=2 (Req 9.5 requires N>=2).
+test MinTreeTb for MinTree {
+    wave { x = [5, 2]; expect y = 2;  expect default; }
+    wave { x = [3, inf]; expect y = 3;  expect default; }
+}
+test MaxTreeTb for MaxTree {
+    wave { x = [5, 2]; expect y = 5;  expect default; }
+    wave { x = [3, inf]; expect y = inf;  expect default; }
+}
+
+// --- Sort2 compare-exchange (Req 9.6, 9.10) ---
+test Sort2Tb for Sort2 {
+    wave { a = 3; b = 5; expect lo = 3; expect hi = 5;  expect default; }
+    wave { a = 5; b = 3; expect lo = 3; expect hi = 5;  expect default; }
+    wave { a = 4; b = 4; expect lo = 4; expect hi = 4;  expect default; }
+    wave { a = 2; b = inf; expect lo = 2; expect hi = inf;  expect default; }
+    wave { a = inf; b = inf; expect lo = inf; expect hi = inf;  expect default; }
+}
+
+// --- Sorting networks built from Sort2 (Req 9.7, 9.10), via flat equivalents ---
+test Sort2FlatTb for Sort2Flat {
+    wave { x = [5, 3]; expect y = [3, 5];  expect default; }
+    wave { x = [2, inf]; expect y = [2, inf];  expect default; }
+}
+test Sort3FlatTb for Sort3Flat {
+    wave { x = [4, 1, 2]; expect y = [1, 2, 4];  expect default; }
+    wave { x = [3, 3, 1]; expect y = [1, 3, 3];  expect default; }
+    wave { x = [inf, 2, 5]; expect y = [2, 5, inf];  expect default; }
+}
+test Sort4FlatTb for Sort4Flat {
+    wave { x = [5, 2, 9, 7]; expect y = [2, 5, 7, 9];  expect default; }
+    wave { x = [3, 3, inf, 1]; expect y = [1, 3, 3, inf];  expect default; }
+    wave { x = [6, 5, 4, 0]; expect y = [0, 4, 5, 6];  expect default; }
+    wave { x = [inf, inf, inf, inf]; expect y = [inf, inf, inf, inf];  expect default; }
+}
+
+// --- Winner-take-all, strict and first-wins (Req 9.8, 9.10) ---
+test Wta3StrictTb for Wta3Strict {
+    wave { x = [5, 2, 9]; expect y = [inf, 2, inf];  expect default; }
+    wave { x = [2, 2, 9]; expect y = [inf, inf, inf];  expect default; }
+    wave { x = [3, 5, 1]; expect y = [inf, inf, 1];  expect default; }
+    wave { x = [inf, inf, inf]; expect y = [inf, inf, inf];  expect default; }
+}
+test Wta3FirstTb for Wta3First {
+    wave { x = [5, 2, 9]; expect y = [inf, 2, inf];  expect default; }
+    wave { x = [2, 2, 9]; expect y = [2, inf, inf];  expect default; }
+    wave { x = [5, 2, 2]; expect y = [inf, 2, inf];  expect default; }
+    wave { x = [1, 1, 1]; expect y = [1, inf, inf];  expect default; }
+    wave { x = [inf, inf, inf]; expect y = [inf, inf, inf];  expect default; }
+}
+
+// --- Coincidence detector within k ticks (Req 9.9, 9.10), default K=1 ---
+test CoincidenceTb for Coincidence {
+    wave { a = 3; b = 3; expect y = 3;  expect default; }
+    wave { a = 3; b = 4; expect y = 4;  expect default; }
+    wave { a = 4; b = 3; expect y = 4;  expect default; }
+    wave { a = 3; b = 5; expect y = inf;  expect default; }
+    wave { a = 3; b = inf; expect y = inf;  expect default; }
+    wave { a = inf; b = inf; expect y = inf;  expect default; }
+}

@@ -1,0 +1,25 @@
+// Lesson 08 — parameters: compile-time #(param N = ..) for reusable sizes.
+// A testbench binds a module at its DEFAULT params, so we test defaults here;
+// non-default sizes are exercised via `inst` in Lesson 10.
+
+// Delay by a parameterized amount N (default 3).
+module DelayN #(param N = 3) (input time a, output time y) {
+    y = a + N;
+}
+
+// A fixed width-4 min fold, written out by hand (Lesson 09 rewrites this with a loop).
+module Min4 (input time x[4], output time y) {
+    y = min(min(x[0], x[1]), min(x[2], x[3]));
+}
+
+test DelayNTb for DelayN {
+    wave { a = 2;   expect y = 5;  expect default; }     // 2 + 3
+    wave { a = 0;   expect y = 3;  expect default; }
+    wave { a = inf; expect y = inf;  expect default; }
+}
+
+test Min4Tb for Min4 {
+    wave { x = [5, 2, 9, 7];       expect y = 2;  expect default; }
+    wave { x = [inf, inf, 4, inf]; expect y = 4;  expect default; }
+    wave { x = [inf, inf, inf, inf]; expect y = inf;  expect default; }
+}

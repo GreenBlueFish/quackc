@@ -1,0 +1,20 @@
+# Rust build output
+/target
+
+# VS Code extension build artifacts
+*.vsix
+vscode-quack/node_modules/
+
+# Scratch / log files
+*.log
+out.txt
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vs/
+
+# Internal design brief and generated spec documents (kept local, not published)
+st_algebra_language_prompt.txt
+.kiro/

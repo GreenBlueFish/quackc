@@ -1,0 +1,44 @@
+{
+  "name": "quack-lang",
+  "displayName": "Quack (s-t algebra)",
+  "description": "Syntax highlighting, bracket/comment behavior, and snippets for the Quack space-time algebra language (.sta).",
+  "version": "0.5.0",
+  "publisher": "quackc",
+  "license": "MIT OR Apache-2.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "quack",
+        "aliases": [
+          "Quack",
+          "quack",
+          "s-t algebra"
+        ],
+        "extensions": [
+          ".sta"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "quack",
+        "scopeName": "source.quack",
+        "path": "./syntaxes/quack.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "quack",
+        "path": "./snippets/quack.code-snippets"
+      }
+    ]
+  }
+}

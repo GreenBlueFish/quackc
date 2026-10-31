@@ -1,0 +1,25 @@
+[package]
+name = "quackc"
+version = "0.1.0"
+edition = "2021"
+description = "Compiler for the Quack s-t algebra hardware-description language, emitting C++17"
+license = "MIT"
+
+# Single cargo crate with both a library target and a binary target (Requirement 15.1, 15.2).
+[lib]
+name = "quackc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "quackc"
+path = "src/main.rs"
+
+[dependencies]
+# serde (with derive) for serializing the netlist IR (task 9, Requirement 4.9). The `rc` feature
+# lets `Arc<str>` (the `Span.file` path) serialize, since each IR node carries a `Span` as its
+# source-location provenance (Req 4.2, 12.1).
+serde = { version = "1", features = ["derive", "rc"] }
+# serde_json renders the versioned netlist IR to the JSON export document (task 21,
+# Requirement 12.1). The exporter builds a provenance-validated view and serializes it to a
+# pretty-printed JSON string via serde_json.
+serde_json = "1"

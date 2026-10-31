@@ -1,0 +1,29 @@
+// Lesson 11 — using the auto-imported standard library (no `import` line needed).
+//
+// Wta3Strict is primitive-only, so we TEST it directly here. SortNet4 is built from
+// `inst Sort2` internally, so (as in Lesson 10) it does not simulate through the test
+// runner — exercise it with `build` / `emit-netlist` instead, and test the flat twin.
+//   quackc build lib-demo.sta --top MySort4 --out out
+//   quackc emit-netlist lib-demo.sta --top MySort4 --format dot
+
+// A 4-input sorter wrapping the library SortNet4 (hierarchical; build/emit, do not test).
+module MySort4 (input time d[4], output time s[4]) {
+    inst net = SortNet4 (.x(d), .y(s));
+}
+
+// Flat twin for testing: wraps the library Sort4Flat (primitive-only).
+module MySort4Flat (input time d[4], output time s[4]) {
+    inst net = Sort4Flat (.x(d), .y(s));
+}
+
+// A 3-way strict winner-take-all: only a UNIQUE earliest input passes (primitive-only).
+module MyWta (input time d[3], output time w[3]) {
+    inst wta = Wta3Strict (.x(d), .y(w));
+}
+
+// Wta3Strict is primitive-only, so this wrapper simulates fine.
+test MyWtaTb for MyWta {
+    wave { d = [5, 2, 9]; expect w = [inf, 2, inf];  expect default; }   // 2 is the unique earliest
+    wave { d = [2, 2, 9]; expect w = [inf, inf, inf];  expect default; } // tie for earliest -> no winner
+    wave { d = [3, 5, 1]; expect w = [inf, inf, 1];  expect default; }
+}

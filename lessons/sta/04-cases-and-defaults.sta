@@ -1,0 +1,21 @@
+// Lesson 04 (extra) — the new test conveniences: `expect default`, a `default` block,
+// and the `cases` table form. Same FirstArrival module as Lesson 02.
+
+module FirstArrive (input time a, input time b, output time y) {
+    y = min(a, b);
+}
+
+// `cases` form: each binding is a vector; column i is wave i. One line per signal
+// instead of one line per wave.
+cases FirstArriveCases for FirstArrive {
+    a      = [1, 2, 4, inf, inf];
+    b      = [2, 2, 3, 2,   inf];
+    expect y = [1, 2, 3, 2, inf];
+    expect default;                 // applies to every expanded wave (no other outputs here)
+}
+
+// Classic wave form with `expect default` to pin the whole (single) output vector.
+test FirstArriveTb for FirstArrive {
+    wave { a = 5; b = 9; expect y = 5; expect default; }
+    wave { a = inf; b = inf; expect default; }   // y unmentioned -> checked against inf
+}

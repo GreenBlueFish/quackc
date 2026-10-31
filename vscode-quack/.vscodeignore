@@ -1,0 +1,6 @@
+.vscode/**
+.gitignore
+**/*.map
+*.log
+*.vsix
+out.log

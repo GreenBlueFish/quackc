@@ -1,0 +1,9 @@
+// Lesson 11b helper — a reusable block in its own file, pulled in with `include`.
+// It has its own test, which will NOT run when you test the TOP file (only top-file tests run).
+module Delay1 (input time a, output time y) {
+    y = a + 1;
+}
+
+test Delay1Tb for Delay1 {
+    wave { a = 3; expect y = 4; expect default; }
+}

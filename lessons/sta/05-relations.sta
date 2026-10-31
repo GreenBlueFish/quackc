@@ -1,0 +1,29 @@
+// Lesson 05 — derived operators and their if/else meanings.
+// One output per operator. Relationals pass the LEFT operand when the relation
+// holds, else inf. max is the later arrival.
+
+module Relations (
+    input time a, input time b,
+    output time lt, output time gt, output time eq, output time neq, output time mx
+) {
+    lt  = a < b;      // a if a <  b else inf  (the primitive)
+    gt  = a > b;      // a if a >  b else inf
+    eq  = a == b;      // a if a == b else inf
+    neq = a != b;      // a if a != b else inf
+    mx  = max(a, b);   // the later arrival
+}
+
+test RelationsTb for Relations {
+    // a < b
+    wave { a = 2; b = 5;
+           expect lt = 2; expect gt = inf; expect eq = inf; expect neq = 2; expect mx = 5; }
+    // a > b
+    wave { a = 5; b = 2;
+           expect lt = inf; expect gt = 5; expect eq = inf; expect neq = 5; expect mx = 5; }
+    // a == b
+    wave { a = 4; b = 4;
+           expect lt = inf; expect gt = inf; expect eq = 4; expect neq = inf; expect mx = 4; }
+    // one never fires: a finite, b = inf  -> a < b
+    wave { a = 3; b = inf;
+           expect lt = 3; expect gt = inf; expect eq = inf; expect neq = 3; expect mx = inf; }
+}

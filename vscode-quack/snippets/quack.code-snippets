@@ -1,0 +1,122 @@
+{
+  "Module": {
+    "prefix": "module",
+    "body": [
+      "module ${1:Name} (",
+      "\tinput  time ${2:a}, input time ${3:b},",
+      "\toutput time ${4:y}",
+      ") {",
+      "\t$0",
+      "}"
+    ],
+    "description": "A combinational Quack module with input/output time ports"
+  },
+  "Parameterized module": {
+    "prefix": "modulep",
+    "body": [
+      "module ${1:Name} #(param ${2:N} = ${3:4}) (input time ${4:x}[${2:N}], output time ${5:y}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "A parameterized module with a vector input port"
+  },
+  "func": {
+    "prefix": "func",
+    "body": [
+      "func ${1:name}(time ${2:a}, time ${3:b}) -> time { return $0; }"
+    ],
+    "description": "A compile-time func macro (single time output)"
+  },
+  "wire": {
+    "prefix": "wire",
+    "body": [
+      "wire time ${1:w};"
+    ],
+    "description": "Declare an internal wire"
+  },
+  "wire vector": {
+    "prefix": "wirev",
+    "body": [
+      "wire time ${1:v}[${2:N}];"
+    ],
+    "description": "Declare an internal wire vector"
+  },
+  "inst": {
+    "prefix": "inst",
+    "body": [
+      "inst ${1:u} = ${2:Module} (.${3:a}(${4:x}), .${5:y}(${6:z}));"
+    ],
+    "description": "Instantiate a submodule with named port connections"
+  },
+  "for generate": {
+    "prefix": "for",
+    "body": [
+      "for ${1:i} in ${2:0}..${3:N} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "A compile-time for-generate loop"
+  },
+  "if generate": {
+    "prefix": "if",
+    "body": [
+      "if (${1:cond}) {",
+      "\t$0",
+      "}"
+    ],
+    "description": "A compile-time if-generate block"
+  },
+  "import": {
+    "prefix": "import",
+    "body": [
+      "import ${1:name}.sta;"
+    ],
+    "description": "Import another .sta file from the library path"
+  },
+  "include": {
+    "prefix": "include",
+    "body": [
+      "include ${1:path/to/file}.sta;"
+    ],
+    "description": "Include another .sta file relative to this file (multi-file projects)"
+  },
+  "test block": {
+    "prefix": "test",
+    "body": [
+      "test ${1:Name}Tb for ${2:Module} {",
+      "\twave { ${3:a} = ${4:0}; expect ${5:y} = ${6:inf}; expect default; }",
+      "\t$0",
+      "}"
+    ],
+    "description": "A testbench binding to a module"
+  },
+  "test with default block": {
+    "prefix": "testdefault",
+    "body": [
+      "test ${1:Name}Tb for ${2:Module} {",
+      "\tdefault { ${3:out} = ${4:inf}; }",
+      "\twave { ${5:a} = ${6:0}; expect ${7:y} = ${8:inf}; expect default; }",
+      "\t$0",
+      "}"
+    ],
+    "description": "A testbench with a per-test default block"
+  },
+  "cases table": {
+    "prefix": "cases",
+    "body": [
+      "cases ${1:Name} for ${2:Module} {",
+      "\t${3:a}      = [${4:1, 2, 3}];",
+      "\texpect ${5:y} = [${6:1, 2, 3}];",
+      "\t$0",
+      "}"
+    ],
+    "description": "A table-form test: one vector per signal, column i is wave i"
+  },
+  "wave": {
+    "prefix": "wave",
+    "body": [
+      "wave { ${1:a} = ${2:0}; expect ${3:y} = ${4:inf}; }"
+    ],
+    "description": "A single stimulus wave with expectations"
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Quack",
+  "scopeName": "source.quack",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#instance-ports" },
+    { "include": "#operators" },
+    { "include": "#calls" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.quack",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.quack",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "comment": "module / func definition name",
+          "match": "\\b(module)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.module.quack" },
+            "2": { "name": "entity.name.type.module.quack" }
+          }
+        },
+        {
+          "comment": "test block name and its target module",
+          "match": "\\b(test)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.test.quack" },
+            "2": { "name": "entity.name.function.test.quack" },
+            "3": { "name": "keyword.control.quack" },
+            "4": { "name": "entity.name.type.module.quack" }
+          }
+        },
+        {
+          "comment": "cases block name and its target module",
+          "match": "\\b(cases)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(for)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.cases.quack" },
+            "2": { "name": "entity.name.function.test.quack" },
+            "3": { "name": "keyword.control.quack" },
+            "4": { "name": "entity.name.type.module.quack" }
+          }
+        },
+        {
+          "comment": "instance: inst name = Module(...)",
+          "match": "\\b(inst)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(=)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.inst.quack" },
+            "2": { "name": "variable.other.instance.quack" },
+            "3": { "name": "keyword.operator.assignment.quack" },
+            "4": { "name": "entity.name.type.module.quack" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "comment": "control flow: generate loops/conditionals and func return (if/else/for/in/return)",
+          "name": "keyword.control.quack",
+          "match": "\\b(if|else|for|in|return)\\b"
+        },
+        {
+          "comment": "declaration keywords",
+          "name": "keyword.declaration.quack",
+          "match": "\\b(module|func|wire|inst|test|cases|default|wave|expect|param|import|include|assert)\\b"
+        },
+        {
+          "comment": "port direction modifiers",
+          "name": "storage.modifier.quack",
+          "match": "\\b(input|output)\\b"
+        },
+        {
+          "comment": "reserved but unused in v1; keyword.other is styled by all themes",
+          "name": "keyword.other.reserved.quack",
+          "match": "\\b(stage|reset)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.quack",
+          "match": "\\b(time)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.inf.quack",
+          "match": "\\b(inf)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.quack",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "instance-ports": {
+      "patterns": [
+        {
+          "comment": "named port connection .port(...)",
+          "match": "(\\.)([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "punctuation.accessor.quack" },
+            "2": { "name": "variable.other.port.quack" }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "comment": "s-t relational operators (longest-first so <= >= win over < >) plus ^ (min)",
+          "name": "keyword.operator.relational.quack",
+          "match": "<=|>=|==|!=|<|>|\\^"
+        },
+        {
+          "name": "keyword.operator.arrow.quack",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.range.quack",
+          "match": "\\.\\."
+        },
+        {
+          "name": "keyword.operator.arithmetic.quack",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.assignment.quack",
+          "match": "="
+        }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        {
+          "comment": "function / operator calls like min(...), lt(...), max(...)",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.quack" }
+          }
+        }
+      ]
+    }
+  }
+}

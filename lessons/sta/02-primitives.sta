@@ -1,0 +1,36 @@
+// Lesson 02 — the three primitives, each in its own module.
+
+// Primitive 1: min — the earlier arrival (variadic, >= 2 args).
+module FirstArrival (input time a, input time b, output time y) {
+    y = min(a, b);
+}
+
+// Primitive 2: delay — shift a spike later by a compile-time amount.
+module DelayTwo (input time a, output time y) {
+    y = a + 2;
+}
+
+// Primitive 3: inhibit — pass a only if a is strictly earlier than b.
+module Inhibit (input time a, input time b, output time y) {
+    y = a < b;
+}
+
+test FirstArrivalTb for FirstArrival {
+    wave { a = 3; b = 5;     expect y = 3;  expect default; }
+    wave { a = 5; b = 5;     expect y = 5;  expect default; }   // tie: either, both are 5
+    wave { a = 4; b = inf;   expect y = 4;  expect default; }
+    wave { a = inf; b = inf; expect y = inf;  expect default; }
+}
+
+test DelayTwoTb for DelayTwo {
+    wave { a = 3;   expect y = 5;  expect default; }
+    wave { a = 0;   expect y = 2;  expect default; }
+    wave { a = inf; expect y = inf;  expect default; }           // inf + 2 = inf
+}
+
+test InhibitTb for Inhibit {
+    wave { a = 3; b = 5; expect y = 3;  expect default; }        // a earlier -> passes
+    wave { a = 5; b = 3; expect y = inf;  expect default; }      // a later   -> blocked
+    wave { a = 4; b = 4; expect y = inf;  expect default; }      // tie       -> blocked (strict)
+    wave { a = 2; b = inf; expect y = 2;  expect default; }      // nothing blocks a
+}

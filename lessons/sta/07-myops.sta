@@ -1,0 +1,24 @@
+// Lesson 07 — functions (func): pure compile-time macros, inlined into expressions.
+// Build your own derived operators from the primitives.
+
+// A thin alias to get the shape.
+func earlier2(time a, time b) -> time { return min(a, b); }
+
+// Your own `le`: a if a <= b else inf, using only the inhibit primitive.
+//   a < (b < a):
+//     a < b -> (b<a)=inf, a<inf = a   (<= holds, pass a)
+//     a = b -> (b<a)=inf, a<inf = a   (<= holds, pass a)
+//     a > b -> (b<a)=b,   a<b   = inf (blocked)
+func my_le(time a, time b) -> time { return a < (b < a); }
+
+module UsesMyOps (input time a, input time b, output time e, output time l) {
+    e = earlier2(a, b);
+    l = my_le(a, b);
+}
+
+test UsesMyOpsTb for UsesMyOps {
+    wave { a = 2; b = 5;   expect e = 2; expect l = 2;  expect default; }     // a <= b
+    wave { a = 5; b = 2;   expect e = 2; expect l = inf;  expect default; }   // a >  b -> le blocks
+    wave { a = 4; b = 4;   expect e = 4; expect l = 4;  expect default; }     // a == b -> le passes
+    wave { a = 3; b = inf; expect e = 3; expect l = 3;  expect default; }     // a <= inf
+}

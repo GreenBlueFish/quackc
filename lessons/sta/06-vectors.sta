@@ -1,0 +1,23 @@
+// Lesson 06 — vectors: time[N] ports, indexing, and vector stimulus literals.
+// Pick returns the earliest of three inputs; PickPair returns (earliest, latest).
+
+module Pick (input time x[3], output time first) {
+    first = min(x[0], x[1], x[2]);   // min is variadic
+}
+
+module PickPair (input time x[3], output time lo, output time hi) {
+    lo = min(x[0], x[1], x[2]);
+    hi = max(max(x[0], x[1]), x[2]);
+}
+
+test PickTb for Pick {
+    wave { x = [5, 2, 9];     expect first = 2;  expect default; }
+    wave { x = [4, 4, 7];     expect first = 4;  expect default; }   // tie for earliest
+    wave { x = [inf, 3, inf]; expect first = 3;  expect default; }
+    wave { x = [inf, inf, inf]; expect first = inf;  expect default; }
+}
+
+test PickPairTb for PickPair {
+    wave { x = [5, 2, 9];     expect lo = 2; expect hi = 9;  expect default; }
+    wave { x = [3, inf, 1];   expect lo = 1; expect hi = inf;  expect default; }   // a never-firing input is the latest
+}

@@ -1,0 +1,15 @@
+// Lesson 03 — modules, internal wires, and the single-driver rule.
+// MinMax sorts a pair into (earlier, later) using a shared internal wire for lo.
+
+module MinMax (input time a, input time b, output time lo, output time hi) {
+    wire time earlier = min(a, b);   // declared-and-driven in one line
+    lo = earlier;                    // reuse of a wire's VALUE is fine...
+    hi = max(a, b);                  // ...only driving it twice would be an error
+}
+
+test MinMaxTb for MinMax {
+    wave { a = 3; b = 5;     expect lo = 3; expect hi = 5;  expect default; }
+    wave { a = 5; b = 3;     expect lo = 3; expect hi = 5;  expect default; }
+    wave { a = 4; b = 4;     expect lo = 4; expect hi = 4;  expect default; }   // tie
+    wave { a = 2; b = inf;   expect lo = 2; expect hi = inf;  expect default; }
+}

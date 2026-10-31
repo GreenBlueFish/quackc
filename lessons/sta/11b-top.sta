@@ -1,0 +1,19 @@
+// Lesson 11b — a top file that includes a sibling file from a subfolder.
+// `include` resolves relative to THIS file; `quackc test` runs only THIS file's tests.
+include helpers/delay.sta;
+
+module TwoStage (input time a, output time y) {
+    wire time s1;
+    inst d0 = Delay1 (.a(a),  .y(s1));   // +1
+    inst d1 = Delay1 (.a(s1), .y(y));    // +1 again
+}
+
+// A flat twin for the testbench (inst is opaque to the interpreter — see Lesson 10).
+module TwoStageFlat (input time a, output time y) {
+    y = a + 2;
+}
+
+test TwoStageFlatTb for TwoStageFlat {
+    wave { a = 3;   expect y = 5; expect default; }
+    wave { a = inf; expect y = inf; expect default; }
+}

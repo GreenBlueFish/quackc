@@ -1,0 +1,41 @@
+// Lesson 09 — generate loops and conditionals.
+// MinFold folds `min` across N inputs with a compile-time `for`. `assert` guards
+// the valid width. NOTE: compile-time expressions have only + - * / % (no >=, ==),
+// and an `assert` is TRUE when its integer value is nonzero. So "N must be >= 2"
+// is written `assert N - 1;` (which is 0 — false — exactly when N == 1).
+//
+// These are named *Fold (not MinTree/MaxTree) because the standard library already
+// declares MinTree/MaxTree, and redeclaring a library name is a duplicate-declaration
+// error (a good thing to know — see Lesson 11).
+
+module MinFold #(param N = 4) (input time x[N], output time y) {
+    assert N - 1;               // nonzero (true) for N >= 2; zero (false) at N == 1
+    wire time acc[N];
+    acc[0] = x[0];
+    for i in 1..N {
+        acc[i] = min(acc[i - 1], x[i]);
+    }
+    y = acc[N - 1];
+}
+
+// The max dual, same structure.
+module MaxFold #(param N = 4) (input time x[N], output time y) {
+    assert N - 1;
+    wire time acc[N];
+    acc[0] = x[0];
+    for i in 1..N {
+        acc[i] = max(acc[i - 1], x[i]);
+    }
+    y = acc[N - 1];
+}
+
+test MinFoldTb for MinFold {
+    wave { x = [5, 2, 9, 7];         expect y = 2;  expect default; }
+    wave { x = [inf, inf, 4, inf];   expect y = 4;  expect default; }
+    wave { x = [inf, inf, inf, inf]; expect y = inf;  expect default; }
+}
+
+test MaxFoldTb for MaxFold {
+    wave { x = [5, 2, 9, 7];       expect y = 9;  expect default; }
+    wave { x = [3, 3, inf, 1];     expect y = inf;  expect default; }   // a never-firing element is the latest
+}

@@ -1,0 +1,11 @@
+// Lesson 00 — your first design: a passthrough module and its testbench.
+
+module Passthrough (input time a, output time y) {
+    y = a;
+}
+
+test PassthroughTb for Passthrough {
+    wave { a = 3;   expect y = 3;  expect default; }
+    wave { a = 0;   expect y = 0;  expect default; }
+    wave { a = inf; expect y = inf;  expect default; }   // an undriven/never-firing input stays inf
+}
