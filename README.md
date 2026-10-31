@@ -1,5 +1,8 @@
 # quackc — a Quack s-t algebra compiler
 
+[![CI](https://github.com/GreenBlueFish/quackc/actions/workflows/ci.yml/badge.svg)](https://github.com/GreenBlueFish/quackc/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 `quackc` compiles **Quack**, a small hardware-description language built on J. E. Smith's
 space-time (s-t) algebra, into portable **C++17**. A Quack design is a feed-forward network of
 combinational modules whose wires carry *spike times*; the compiler elaborates it to a flat
