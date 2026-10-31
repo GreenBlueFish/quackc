@@ -7,7 +7,7 @@ space-time (s-t) algebra language used by the `quackc` compiler. Activates on
 ## Features
 
 - **Syntax highlighting** for keywords (`module`, `wire`, `inst`, `func`, `test`,
-  `wave`, `expect`, `for`, `in`, `if`, `else`, `return`, `param`, `import`, `include`, `cases`,`n  `default`, `assert`, `input`, `output`, reserved `stage`/`reset`),
+  `wave`, `expect`, `for`, `in`, `if`, `else`, `return`, `param`, `import`, `include`, `cases`, `default`, `assert`, `input`, `output`, reserved `stage`/`reset`),
   the `time` type, the `inf` literal, integer literals, the s-t relational
   operators `<` `>` `<=` `>=` `==` `!=` `^`, arithmetic, `->`, `..`, comments, module/instance
   names, function calls, and named port connections.
@@ -16,24 +16,31 @@ space-time (s-t) algebra language used by the `quackc` compiler. Activates on
 - **Snippets**: `module`, `modulep`, `func`, `wire`, `wirev`, `inst`, `for`, `if`,
   `import`, `test`, `wave`.
 
-## Install locally
+## Install the prebuilt extension
 
-From this folder:
+A packaged `.vsix` is committed to this folder, so you can install without building:
+
+```sh
+code --install-extension quack-lang-0.5.0.vsix
+```
+
+Or in VS Code / Kiro: Extensions panel -> "..." menu -> **Install from VSIX...**
+and pick `quack-lang-0.5.0.vsix`. Then run **Developer: Reload Window** and open any `.sta` file.
+
+## Build it yourself
+
+If you change the grammar/snippets and want to repackage:
 
 ```sh
 npm install -g @vscode/vsce   # one time
-vsce package                  # produces quack-lang-0.1.0.vsix
+vsce package --allow-missing-repository   # produces quack-lang-<version>.vsix
 ```
 
-Then in VS Code / Kiro: Extensions panel -> "..." menu -> **Install from VSIX...**
-and pick the generated `.vsix`.
-
 For a quick dev loop without packaging, copy (or symlink) this folder into your
-extensions directory:
+extensions directory, then reload the window:
 
 - Windows: `%USERPROFILE%\.vscode\extensions\quack-lang`
-
-Reload the window and open any `.sta` file.
+- macOS / Linux: `~/.vscode/extensions/quack-lang`
 
 ## Scope
 

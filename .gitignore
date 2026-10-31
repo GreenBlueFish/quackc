@@ -1,8 +1,10 @@
 # Rust build output
 /target
 
-# VS Code extension build artifacts
+# VS Code extension: ignore stray build artifacts, but DO publish the packaged extension so it
+# can be installed directly from the repo without building.
 *.vsix
+!vscode-quack/quack-lang-*.vsix
 vscode-quack/node_modules/
 
 # Scratch / log files

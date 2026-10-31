@@ -1,0 +1,15 @@
+# Treat Quack source (.sta) as Verilog for GitHub syntax highlighting and language stats.
+# Quack is a Verilog-like HDL (modules, ports, wires, instances), so Verilog's highlighter is the
+# closest match GitHub (Linguist) offers. It will not know Quack-specific tokens like `<|`, `inf`,
+# or `min`, but colors keywords, comments, and numbers far better than plain text.
+# (GitHub cannot use a custom per-repo grammar; it only highlights languages in its Linguist set.)
+*.sta linguist-language=Verilog
+
+# Keep the .sta files out of the language-stats breakdown being dominated by generated/sample code
+# is not a concern here, but mark them as documentation-adjacent sample sources if desired:
+# *.sta linguist-detectable=true
+
+# Normalize line endings so the repo is consistent across OSes (silences CRLF warnings).
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.hpp text eol=lf
